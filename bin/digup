@@ -1,0 +1,16 @@
+#!/usr/bin/env node
+
+var path = require('path');
+var colors = require('colors');
+var disp   = require('../digup')(process.argv.slice(2))
+
+disp.on('finder::match',function(line){
+  
+  console.log(
+    (path.dirname(line.from) + '/').dim +
+    path.basename(line.from).magenta +
+    '['+line.row.toString().cyan+']',
+    line.text
+  );
+
+});

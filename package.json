@@ -1,0 +1,29 @@
+{
+  "name": "digup",
+  "version": "1.0.2",
+  "description": "A handy command line tool written in javascript that reads files down the directory tree line by line printing out lines that match all of the passed arguments.",
+  "main": "./digup.js",
+  "bin": "./bin/digup",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nikolakanacki/digup.git"
+  },
+  "author": {
+    "name": "Nikola Kanacki",
+    "email": "office@nikolakanacki.com"
+  },
+  "keywords": [
+    "codesearch",
+    "digup",
+    "lookup",
+    "search",
+    "readline",
+    "grep",
+    "awk",
+    "sed"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "colors": "^1.1.2"
+  }
+}
