@@ -1,6 +1,6 @@
 {
   "name": "digup",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A handy command line tool written in javascript that reads files down the directory tree line by line printing out lines that match all of the passed arguments.",
   "main": "./digup.js",
   "bin": "./bin/digup",

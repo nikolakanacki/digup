@@ -4,18 +4,19 @@
 
 A handy command line tool written in javascript that reads files down the directory tree line by line printing out lines that match all of the passed arguments.
 
-[![npm](https://img.shields.io/badge/npm-1.0.2-green.svg)](https://www.npmjs.com/package/digup)
+![version](https://img.shields.io/badge/version-1.0.3-green.svg)
 [![dependencies](https://david-dm.org/nikolakanacki/digup.svg)](https://david-dm.org/nikolakanacki/digup)
+[![npm](https://img.shields.io/badge/npm-1.0.3-green.svg)](https://www.npmjs.com/package/digup)
 ![node](https://img.shields.io/badge/node-4.2.1-green.svg)
 ![tested](https://img.shields.io/badge/tested-linux%20|%20osx-green.svg)
 
-It's dead simple, pretty fast (almost as fast as `grep`) and it leverages a super-straightforward syntax **(no dashed options are required)** which all makes it a perfect tool for frequent project searches - eg. finding `@todo`s in the current project (cwd) is as easy as `digup . @todo`.
+It's dead simple, pretty fast (almost as fast as `grep`) and it leverages a super-straightforward syntax **(no dashed options are required)** which all makes it a perfect tool for frequent project searches - eg. finding `@todo`s in the current project (`cwd`) is as easy as `digup . @todo`.
 
 Two shovels of `digup`:
 
 1. A standalone digger, making use of `find` command internally to get the file paths recursively, eg. `digup . @todo` (the example from above),
 2. A pipeline digger, receiving a stream of file paths and searching among them, eg. `ls -1 | digup @todo`.  
-Here the search will be performed on the files passed on with the output of `ls` command.  
+Here the search will be performed on the files passed from the output of `ls` command.  
 Notice the missing `.` (dot) as the first argument. When in this mode, all the arguments are treated as query strings since we are not using `find` command internally, and that first `<path>` argument is not needed.
 
 ## Install
