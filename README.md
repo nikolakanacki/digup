@@ -1,3 +1,5 @@
+![digup](http://cdn.nikolakanacki.com/pub/va/digup.png)
+
 # digup
 
 A handy command line tool written in javascript that reads files down the directory tree line by line printing out lines that match all of the passed arguments.
