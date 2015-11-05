@@ -4,13 +4,15 @@
 
 A handy command line tool written in javascript that reads files down the directory tree line by line printing out lines that match all of the passed arguments.
 
-![version](https://img.shields.io/badge/version-1.0.3-green.svg)
+![version](https://img.shields.io/badge/version-1.0.4-green.svg)
 [![dependencies](https://david-dm.org/nikolakanacki/digup.svg)](https://david-dm.org/nikolakanacki/digup)
-[![npm](https://img.shields.io/badge/npm-1.0.3-green.svg)](https://www.npmjs.com/package/digup)
+[![npm](https://img.shields.io/badge/npm-1.0.4-green.svg)](https://www.npmjs.com/package/digup)
 ![node](https://img.shields.io/badge/node-4.2.1-green.svg)
 ![tested](https://img.shields.io/badge/tested-linux%20|%20osx-green.svg)
 
-It's dead simple, pretty fast (almost as fast as `grep`) and it leverages a super-straightforward syntax **(no dashed options are required)** which all makes it a perfect tool for frequent project searches - eg. finding `@todo`s in the current project (`cwd`) is as easy as `digup . @todo`.
+**Speed:** Wordpress directory / `2371` files / `639927` lines / `2` arguments / `~0.6` seconds.
+
+It's dead simple, leveraging a super-straightforward syntax **(no dashed options are required)** which makes it a perfect tool for frequent project searches - eg. finding `@todo`s in the current project (`cwd`) is as easy as `digup . @todo`.
 
 Two shovels of `digup`:
 
