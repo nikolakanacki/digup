@@ -6,10 +6,12 @@ var disp   = require('../digup')(process.argv.slice(2))
 
 disp.on('finder::match',function(line){
   
-  console.log(
-    (path.dirname(line.from) + '/').dim +
-    path.basename(line.from).magenta +
-    '['+line.row.toString().cyan+']',
+  console.log( '%s%s %s%s[%s]    %s',
+    line.matchid.toString().yellow,
+    ':'.dim,
+    (path.dirname(line.from) + '/').dim,
+    path.basename(line.from).magenta,
+    line.row.toString().cyan,
     line.text
   );
 

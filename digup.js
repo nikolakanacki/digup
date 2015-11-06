@@ -76,7 +76,6 @@ module.exports = function (args) {
     } else {
       
       var path = args.shift();
-//       path = path ? PATH.resolve(process.cwd(),path) : '.';
       var find = SPAWN('find',[
         '-L',path,'-type','f','-not','-path','*/\\.*'
       ],{
@@ -179,11 +178,13 @@ module.exports = function (args) {
       )+')','ig');
     });
     
-    disp.on('reader::line',function(line){
+    var matchid = 0;
+    
+    if (query.length) {
       
-      if (typeof line.text !== 'string') return;
-      
-      if (query.length) {
+      disp.on('reader::line',function(line){
+    
+        if (typeof line.text !== 'string') return;
         
         var found = 0;
         
@@ -197,15 +198,27 @@ module.exports = function (args) {
           
         });
         
-        if (found == query.length) disp.emit('finder::match',line);
+        if (found == query.length) {
+          
+          line.matchid = matchid++;
+          disp.emit('finder::match',line);
+          
+        }
         
-      } else {
+      });
+      
+    } else {
+    
+      disp.on('reader::line',function(line){
+    
+        if (typeof line.text !== 'string') return;
         
+        line.matchid = matchid++;
         disp.emit('finder::match',line);
         
-      }
-      
-    })
+      });
+  
+    }
     
   })(disp,args);
   
