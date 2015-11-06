@@ -8,7 +8,7 @@ var C = require('colors');
 /**
  * Digout
  * 
- * @param   {object} argv  - Configuration
+ * @param   {object} conf  - Configuration object.
  * @returns {EventEmmiter}   An event emmiter that delegates responsibility
  *                           accross the process.
  *
@@ -96,9 +96,9 @@ module.exports = function (conf) {
       
       rl.on('line',function(line){
         ln++; disp.emit('reader::line',{
-          row: ln,
-          text: line,
-          from: path
+          row:   ln,
+          from:  path,
+          value: line || ''
         });
       }).on('close',function(){
         reading = false;
@@ -134,75 +134,115 @@ module.exports = function (conf) {
   
   (function(disp,conf){
     
-    var matchid = 0;
-    var past    = [];
-    var target  = false;
-    var future  = [];
+    var expanding = conf.expand ? true : false;
+    var id        = 0;
+    var past      = [];
+    var match     = false;
+    var future    = [];
+    
+    /*
+     * An inner normalization event
+     * for preparing matches
+     */
     
     disp.on('finder::export',function(l){
       
-      var exp = l;
+      var exp     = l;
+      exp.past    = past;
+      exp.future  = future;
+      exp.matched = true;
       
-      exp.past = past;
-      exp.future = future;
+      if (exp.id > -1) exp.id = exp.id.toString();
       
-      disp.emit('finder::match',exp);
+      disp.emit('finder::match',exp,expanding);
       
-      target = false; past = []; future = [];
+      match = false;
       
     });
     
+    /*
+     * If query is defined perform
+     * the search
+     */
+    
     if (conf.query && conf.query.length) {
+      
+      /*
+       * When the reader (file) closes, if we have an unexported
+       * match (line that has been waiting for the full expension)
+       * export it.
+       */
       
       disp.on('reader::close',function(){
         
-        if (target) {
-          target.past = past;
-          target.future = future;
-          disp.emit('finder::match',target);
-          target = false; past = []; future = [];
-        }
+        if (match) disp.emit('finder::export',match);
         
       });
       
+      /*
+       * Listen to new lines feed
+       * from the reader
+       */
+      
       disp.on('reader::line',function(line){
-    
-        if (typeof line.text !== 'string') return;
         
         var found = 0;
         
+        /*
+         * Perform the query matching
+         */
+        
         conf.query.forEach(function(q){
           
-          q.lastIndex = 0; if (line.text.match(q)) {
+          if (line.value.match(q)) {
             
-            found++;
-            line.text = line.text.replace(q,'$1'.cyan);
+            found++; line.value = line.value.replace(q,'$1'.cyan);
             
-          }
+          } q.lastIndex = 0;
           
         });
         
+        /*
+         * If the match was positive
+         * see if we're ready to export.
+         */
+        
         if (found == conf.query.length) {
           
-          line.matchid = matchid++;
+          line.id      = id++;
+          line.matched = true;
           
-          if (!conf.expand) {
+          if (!expanding) {
+            
             disp.emit('finder::export',line);
-          } else if (conf.expand.id == line.matchid) {
-            target = line;
+            
+          } else if (conf.expand.id == line.id) {
+            
+            match = line;
+            
           }
           
-        } else if (conf.expand) {
+          /*
+           * If not, see if we need to use the line
+           * in an expansion process.
+           */
           
-          if (conf.expand.size >= past.length && !target) past.push(line);
+        } else if (expanding) {
+          
+          if (conf.expand.size >= past.length && !match) past.push(line);
           if (past.length > conf.expand.size) past.shift();
           
-          if (conf.expand.size > future.length && target) future.push(line);
+          if (conf.expand.size > future.length && match) future.push(line);
           if (future.length > conf.expand.size) future.shift();
           
-          if (conf.expand.size == future.length && target) {
+          /*
+           * If we filled the future array (which means we already
+           * filled the past array), and we have a valid match, export.
+           */
+          
+          if (conf.expand.size == future.length && match) {
             
-            disp.emit('finder::export',target);
+            disp.emit('finder::export',match);
             
           }
           
@@ -214,9 +254,9 @@ module.exports = function (conf) {
     
       disp.on('reader::line',function(line){
     
-        if (typeof line.text !== 'string') return;
+        if (typeof line.value !== 'string') line.value = '';
         
-        line.matchid = matchid++;
+        line.id = id++;
         disp.emit('finder::export',line);
         
       });

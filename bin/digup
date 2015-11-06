@@ -7,6 +7,7 @@
 var yargs = require('yargs')
 
 .usage('\nUsage: digup <path> [query-args] [options]')
+
 .help('h').alias('h','help')
 
 .option('e',{
@@ -16,6 +17,16 @@ var yargs = require('yargs')
     'Expand matchid so it shows 5 lines before and after the',
     'matched one.'
   ].join(' ')
+})
+
+.option('p',{
+  alias: 'pick',
+  type: 'boolean',
+  describe: [
+    'Passing this flag will return the path of the',
+    'file currently expanded line being expanded belongs to.',
+    'It\'s usefull for furder exploration, for example piping it to "cat".'
+  ]
 })
 
 .option('no-color',{
@@ -29,7 +40,7 @@ var colors = require('colors');
 var conf = {};
 
 /*
- * Parse the query / mode
+ * Parse the query / mode / options
  * Exit if no arguments are present.
  */
 
@@ -78,66 +89,56 @@ if (argv.e) {
 }
 
 /*
- * Initiate the shoveling
+ * Pass along the "pick" option, for conveniance
+ */
+
+if (argv.p) conf.pick = true;
+
+/*
+ * Start shovelin'
  */
 
 var disp = require('../digup')(conf);
 
 /*
- * Print matched line
- */
-
-function print_match (line) {
-  
-  console.log(
-    
-    '%s%s %s%s[%s]    %s',
-    
-    line.matchid.toString().yellow,
-    ':'.dim,
-    (path.dirname(line.from) + '/').dim,
-    path.basename(line.from).magenta,
-    line.row.toString().cyan,
-    line.text
-    
-  );
-  
-}
-
-/*
- * Print expanded line
- */
-
-function print_expand (line,matchid) {
-  
-  console.log(
-    
-    '%s  %s%s[%s]    %s',
-    
-    matchid.toString().replace(/[\s\S]/g,' '),
-    (path.dirname(line.from) + '/').dim,
-    path.basename(line.from).magenta,
-    line.row.toString().cyan,
-    line.text
-    
-  );
-  
-}
-
-/*
  * Format the output
  */
 
-disp.on('finder::match',function(line){
+disp.on('finder::match',function(line,exit){
   
-  if (line.past) line.past.forEach(function(p){
-    print_expand (p,line.matchid);
-  });
+  if (conf.pick) {
+    
+    console.log(line.from);
+    
+  } else {
   
-  print_match (line);
-  
-  if (line.future) line.future.forEach(function(f){
-    print_expand (f,line.matchid);
-  });
+    line.past.forEach   (function(p){ print (p,line.id) });
+    
+    print (line);
+    
+    line.future.forEach (function(f){ print (f,line.id) });
+    
+  }
+    
+  if (exit) process.exit();
 
 });
+
+/*
+ * Print line
+ */
+
+function print (line,id) {
+  
+  var out = '{ID}{S} {DIR}{FILE}[{L}]    {LINE}'
+  
+  .replace (/\{ID\}/,(id ? id.replace(/[\d+]/g,' ') : line.id).yellow)
+  .replace (/\{S\}/,(id ? ' ' : ':'.dim))
+  .replace (/\{DIR\}/,(path.dirname(line.from) + '/').dim)
+  .replace (/\{FILE\}/,(path.basename(line.from)).magenta)
+  .replace (/\{L\}/,line.row.toString().cyan)
+  .replace (/\{LINE\}/,line.value);
+  
+  console.log(out);
+  
+}
