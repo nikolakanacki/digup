@@ -7,58 +7,20 @@ var C = require('colors');
 
 /**
  * Digout
- *
- * This is the function that processes files and evaluates the search.
- * It accepts one argument. If the package is ran from the command line, it
- * will represent the arguments passed.
- *
- * If the function is not executed in a pipeline (process.stdin.isTTY !== true)
- * the first element of the array will be used as the "path" passed to the
- * "find" unix/linux command, and the rest of the arguments will be used as
- * query strings.
- *
- * Otherwise, all the elements of the array will be treated as
- * query strings.
- *
- * Printing the output is handled by bin/digup file.
- *
- * Events fired on the dispacher returned:
- *
- * - collector::path - Fired when the collector detects that a new path
- *     is passed to the process, either trough process.stdin or by reading the
- *     output of the "find" command. It will carry one argument - a string
- *     representing a path.
- *
- * - collector::done - Fired when there will be no more paths passed to the
- *     process, or an error has occured and the ops are stopped.
- *
- * - reader::read - Fired when the file path has been verified as a valid file
- *     path and it has been successfully stored in the files buffer.
- *
- * - reader::line - Fired when the new line is read by the reader. It is fired
- *     with one argument - a line object, with the following properties:
- *     - text - String that represents a line
- *     - row  - Line number the line was found at
- *     - from - File path the line was read from
- *
- * - finder::match - Fired when the line passes the query test. The same line
- *     object is passed as an argument as in "reader::line" event, but the
- *     "text" property has a string already formated (colored), ready to be
- *     printed out.
- *
  * 
- * @param   {array} args - Array of string arguments.
- * @returns {EventEmmiter} An event emmiter used to delegate
- *                         responsibility accross the process.
+ * @param   {object} conf  - Configuration object.
+ * @returns {EventEmmiter}   An event emmiter that delegates responsibility
+ *                           accross the process.
  *
  * @function
  * @author Nikola Kanacki <@nikolakanacki>
  * @since 0.1.0
  */
 
-module.exports = function (args) {
+module.exports = function (conf) {
   
   var disp = new EE();
+      conf = conf || {};
   
   /*
    * Collector
@@ -67,18 +29,12 @@ module.exports = function (args) {
    * where we normalize file paths input.
    */
   
-  (function(disp,args) {
+  (function(disp,conf) {
     
-    if (!process.stdin.isTTY) {
+    if (!conf.mode || conf.mode == 'standalone') {
       
-      var seeder = process.stdin;
-      
-    } else {
-      
-      var path = args.shift();
-//       path = path ? PATH.resolve(process.cwd(),path) : '.';
       var find = SPAWN('find',[
-        '-L',path,'-type','f','-not','-path','*/\\.*'
+        '-L',conf.path,'-type','f','-not','-path','*/\\.*'
       ],{
         cwd: process.cwd()
       }).on('error',function(e){
@@ -90,6 +46,10 @@ module.exports = function (args) {
       });
       
       var seeder = find.stdout;
+      
+    } else {
+      
+      var seeder = process.stdin;
       
     }
     
@@ -104,7 +64,7 @@ module.exports = function (args) {
     
     return disp;
     
-  })(disp,args);
+  })(disp,conf);
   
   /*
    * Reader
@@ -113,7 +73,7 @@ module.exports = function (args) {
    * using the readline interface
    */
   
-  (function(disp,args){
+  (function(disp,conf){
     
     var files = [];
     var reading = false;
@@ -136,12 +96,13 @@ module.exports = function (args) {
       
       rl.on('line',function(line){
         ln++; disp.emit('reader::line',{
-          row: ln,
-          text: line,
-          from: path
+          row:   ln,
+          from:  path,
+          value: line || ''
         });
       }).on('close',function(){
         reading = false;
+        disp.emit('reader::close');
         disp.emit('reader::read');
       }).on('error',function(){
         reading = false;
@@ -163,7 +124,7 @@ module.exports = function (args) {
       
     });
     
-  })(disp,args);
+  })(disp,conf);
   
   /*
    * Finder
@@ -171,43 +132,138 @@ module.exports = function (args) {
    * Setup the search process.
    */
   
-  (function(disp,args){
+  (function(disp,conf){
     
-    var query = args.map(function(q){
-      return new RegExp('('+q.replace(
-        /([\\\.\+\*\?\[\^\]\$\(\)\{\}\=\!\<\>\|\:])/g, "\\$1"
-      )+')','ig');
+    var expanding = conf.expand ? true : false;
+    var id        = 0;
+    var past      = [];
+    var match     = false;
+    var future    = [];
+    
+    /*
+     * An inner normalization event
+     * for preparing matches
+     */
+    
+    disp.on('finder::export',function(l){
+      
+      var exp     = l;
+      exp.past    = past;
+      exp.future  = future;
+      exp.matched = true;
+      
+      if (exp.id > -1) exp.id = exp.id.toString();
+      
+      disp.emit('finder::match',exp,expanding);
+      
+      match = false;
+      
     });
     
-    disp.on('reader::line',function(line){
+    /*
+     * If query is defined perform
+     * the search
+     */
+    
+    if (conf.query && conf.query.length) {
       
-      if (typeof line.text !== 'string') return;
+      /*
+       * When the reader (file) closes, if we have an unexported
+       * match (line that has been waiting for the full expension)
+       * export it.
+       */
       
-      if (query.length) {
+      disp.on('reader::close',function(){
+        
+        if (match) disp.emit('finder::export',match);
+        
+      });
+      
+      /*
+       * Listen to new lines feed
+       * from the reader
+       */
+      
+      disp.on('reader::line',function(line){
         
         var found = 0;
         
-        query.forEach(function(q){
+        /*
+         * Perform the query matching
+         */
+        
+        conf.query.forEach(function(q){
           
-          q.lastIndex = 0;
-          
-          if (line.text.match(q)) {
-            found++; line.text = line.text.replace(q,'$1'.cyan);
-          }
+          if (line.value.match(q)) {
+            
+            found++; line.value = line.value.replace(q,'$1'.cyan);
+            
+          } q.lastIndex = 0;
           
         });
         
-        if (found == query.length) disp.emit('finder::match',line);
+        /*
+         * If the match was positive
+         * see if we're ready to export.
+         */
         
-      } else {
+        if (found == conf.query.length) {
+          
+          line.id      = id++;
+          line.matched = true;
+          
+          if (!expanding) {
+            
+            disp.emit('finder::export',line);
+            
+          } else if (conf.expand.id == line.id) {
+            
+            match = line;
+            
+          }
+          
+          /*
+           * If not, see if we need to use the line
+           * in an expansion process.
+           */
+          
+        } else if (expanding) {
+          
+          if (conf.expand.size >= past.length && !match) past.push(line);
+          if (past.length > conf.expand.size) past.shift();
+          
+          if (conf.expand.size > future.length && match) future.push(line);
+          if (future.length > conf.expand.size) future.shift();
+          
+          /*
+           * If we filled the future array (which means we already
+           * filled the past array), and we have a valid match, export.
+           */
+          
+          if (conf.expand.size == future.length && match) {
+            
+            disp.emit('finder::export',match);
+            
+          }
+          
+        }
         
-        disp.emit('finder::match',line);
-        
-      }
+      });
       
-    })
+    } else {
     
-  })(disp,args);
+      disp.on('reader::line',function(line){
+    
+        if (typeof line.value !== 'string') line.value = '';
+        
+        line.id = id++;
+        disp.emit('finder::export',line);
+        
+      });
+  
+    }
+    
+  })(disp,conf);
   
   return disp;
   

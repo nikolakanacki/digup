@@ -24,6 +24,7 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "colors": "^1.1.2"
+    "colors": "^1.1.2",
+    "yargs": "^3.29.0"
   }
 }
