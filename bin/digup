@@ -106,7 +106,7 @@ var disp = require('../digup')(conf);
 
 disp.on('finder::match',function(line,exit){
   
-  if (conf.pick) {
+  if (conf.pick && conf.expand) {
     
     console.log(line.from);
     
