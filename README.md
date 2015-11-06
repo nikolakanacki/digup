@@ -9,9 +9,9 @@ It's dead simple, pretty fast, and leverages a super-straightforward syntax (no 
 
 **! New in version 1.1.0 - LINE EXPANSION feature (read below) !**
 
-![version](https://img.shields.io/badge/version-1.1.1-green.svg)
+![version](https://img.shields.io/badge/version-1.1.2-green.svg)
 [![dependencies](https://david-dm.org/nikolakanacki/digup.svg)](https://david-dm.org/nikolakanacki/digup)
-[![npm](https://img.shields.io/badge/npm-1.1.1-green.svg)](https://www.npmjs.com/package/digup)
+[![npm](https://img.shields.io/badge/npm-1.1.2-green.svg)](https://www.npmjs.com/package/digup)
 ![node](https://img.shields.io/badge/node-4.2.1-green.svg)
 ![tested](https://img.shields.io/badge/tested-linux%20|%20osx-green.svg)
 
@@ -114,7 +114,8 @@ You can now pipe this output further (eg. `xargs cat` which will read the whole 
 - Enable pseudo regex search (`!`,`|`,`*`)
 
 ## Changelog
-
+- 1.1.2
+  - Fixing a missing dependency in package.json
 - 1.1.1
   - Fixing the loosely published npm package
 - 1.1.0
