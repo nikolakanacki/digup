@@ -1,18 +1,143 @@
 #!/usr/bin/env node
 
+/*
+ * Register arguments with yargs
+ */
+
+var yargs = require('yargs')
+
+.usage('\nUsage: digup <path> [query-args] [options]')
+.help('h').alias('h','help')
+
+.option('e',{
+  alias: 'expand',
+  type: 'string',
+  describe: [
+    'Expand matchid so it shows 5 lines before and after the',
+    'matched one.'
+  ].join(' ')
+})
+
+.option('no-color',{
+  type: 'boolean',
+  describe: 'Disable output colors.'
+});
+
+var argv = yargs.argv;
 var path = require('path');
 var colors = require('colors');
-var disp   = require('../digup')(process.argv.slice(2))
+var conf = {};
 
-disp.on('finder::match',function(line){
+/*
+ * Parse the query / mode
+ * Exit if no arguments are present.
+ */
+
+if (argv._.length) {
   
-  console.log( '%s%s %s%s[%s]    %s',
+  (function(args){
+  
+    if (process.stdin.isTTY) {
+      conf.mode = 'standalone';
+      conf.path = args.shift() || '.';
+    } else {
+      conf.mode = 'pipeline';
+    }
+    
+    conf.query = args.map(function(q){
+      return new RegExp('('+q.replace(
+        /([\\\.\+\*\?\[\^\]\$\(\)\{\}\=\!\<\>\|\:])/g, "\\$1"
+      )+')','ig');
+    });
+  
+  })(argv._);
+
+} else {
+  
+  yargs.showHelp();
+  process.exit();
+  
+}
+
+/*
+ * Parse the expand option
+ */
+
+if (argv.e) {
+  
+  (function(e){
+  
+    var match = e.match(/(\d+)\/?(\d+)?/);
+    if (match[1]) conf.expand = {
+      id: parseInt(match[1]),
+      size: match[2] ? parseInt(match[2]) : 5,
+    };
+    
+  })(argv.e);
+  
+}
+
+/*
+ * Initiate the shoveling
+ */
+
+var disp = require('../digup')(conf);
+
+/*
+ * Print matched line
+ */
+
+function print_match (line) {
+  
+  console.log(
+    
+    '%s%s %s%s[%s]    %s',
+    
     line.matchid.toString().yellow,
     ':'.dim,
     (path.dirname(line.from) + '/').dim,
     path.basename(line.from).magenta,
     line.row.toString().cyan,
     line.text
+    
   );
+  
+}
+
+/*
+ * Print expanded line
+ */
+
+function print_expand (line,matchid) {
+  
+  console.log(
+    
+    '%s  %s%s[%s]    %s',
+    
+    matchid.toString().replace(/[\s\S]/g,' '),
+    (path.dirname(line.from) + '/').dim,
+    path.basename(line.from).magenta,
+    line.row.toString().cyan,
+    line.text
+    
+  );
+  
+}
+
+/*
+ * Format the output
+ */
+
+disp.on('finder::match',function(line){
+  
+  if (line.past) line.past.forEach(function(p){
+    print_expand (p,line.matchid);
+  });
+  
+  print_match (line);
+  
+  if (line.future) line.future.forEach(function(f){
+    print_expand (f,line.matchid);
+  });
 
 });

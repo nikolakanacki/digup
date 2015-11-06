@@ -7,58 +7,20 @@ var C = require('colors');
 
 /**
  * Digout
- *
- * This is the function that processes files and evaluates the search.
- * It accepts one argument. If the package is ran from the command line, it
- * will represent the arguments passed.
- *
- * If the function is not executed in a pipeline (process.stdin.isTTY !== true)
- * the first element of the array will be used as the "path" passed to the
- * "find" unix/linux command, and the rest of the arguments will be used as
- * query strings.
- *
- * Otherwise, all the elements of the array will be treated as
- * query strings.
- *
- * Printing the output is handled by bin/digup file.
- *
- * Events fired on the dispacher returned:
- *
- * - collector::path - Fired when the collector detects that a new path
- *     is passed to the process, either trough process.stdin or by reading the
- *     output of the "find" command. It will carry one argument - a string
- *     representing a path.
- *
- * - collector::done - Fired when there will be no more paths passed to the
- *     process, or an error has occured and the ops are stopped.
- *
- * - reader::read - Fired when the file path has been verified as a valid file
- *     path and it has been successfully stored in the files buffer.
- *
- * - reader::line - Fired when the new line is read by the reader. It is fired
- *     with one argument - a line object, with the following properties:
- *     - text - String that represents a line
- *     - row  - Line number the line was found at
- *     - from - File path the line was read from
- *
- * - finder::match - Fired when the line passes the query test. The same line
- *     object is passed as an argument as in "reader::line" event, but the
- *     "text" property has a string already formated (colored), ready to be
- *     printed out.
- *
  * 
- * @param   {array} args - Array of string arguments.
- * @returns {EventEmmiter} An event emmiter used to delegate
- *                         responsibility accross the process.
+ * @param   {object} argv  - Configuration
+ * @returns {EventEmmiter}   An event emmiter that delegates responsibility
+ *                           accross the process.
  *
  * @function
  * @author Nikola Kanacki <@nikolakanacki>
  * @since 0.1.0
  */
 
-module.exports = function (args) {
+module.exports = function (conf) {
   
   var disp = new EE();
+      conf = conf || {};
   
   /*
    * Collector
@@ -67,17 +29,12 @@ module.exports = function (args) {
    * where we normalize file paths input.
    */
   
-  (function(disp,args) {
+  (function(disp,conf) {
     
-    if (!process.stdin.isTTY) {
+    if (!conf.mode || conf.mode == 'standalone') {
       
-      var seeder = process.stdin;
-      
-    } else {
-      
-      var path = args.shift();
       var find = SPAWN('find',[
-        '-L',path,'-type','f','-not','-path','*/\\.*'
+        '-L',conf.path,'-type','f','-not','-path','*/\\.*'
       ],{
         cwd: process.cwd()
       }).on('error',function(e){
@@ -89,6 +46,10 @@ module.exports = function (args) {
       });
       
       var seeder = find.stdout;
+      
+    } else {
+      
+      var seeder = process.stdin;
       
     }
     
@@ -103,7 +64,7 @@ module.exports = function (args) {
     
     return disp;
     
-  })(disp,args);
+  })(disp,conf);
   
   /*
    * Reader
@@ -112,7 +73,7 @@ module.exports = function (args) {
    * using the readline interface
    */
   
-  (function(disp,args){
+  (function(disp,conf){
     
     var files = [];
     var reading = false;
@@ -141,6 +102,7 @@ module.exports = function (args) {
         });
       }).on('close',function(){
         reading = false;
+        disp.emit('reader::close');
         disp.emit('reader::read');
       }).on('error',function(){
         reading = false;
@@ -162,7 +124,7 @@ module.exports = function (args) {
       
     });
     
-  })(disp,args);
+  })(disp,conf);
   
   /*
    * Finder
@@ -170,17 +132,38 @@ module.exports = function (args) {
    * Setup the search process.
    */
   
-  (function(disp,args){
-    
-    var query = args.map(function(q){
-      return new RegExp('('+q.replace(
-        /([\\\.\+\*\?\[\^\]\$\(\)\{\}\=\!\<\>\|\:])/g, "\\$1"
-      )+')','ig');
-    });
+  (function(disp,conf){
     
     var matchid = 0;
+    var past    = [];
+    var target  = false;
+    var future  = [];
     
-    if (query.length) {
+    disp.on('finder::export',function(l){
+      
+      var exp = l;
+      
+      exp.past = past;
+      exp.future = future;
+      
+      disp.emit('finder::match',exp);
+      
+      target = false; past = []; future = [];
+      
+    });
+    
+    if (conf.query && conf.query.length) {
+      
+      disp.on('reader::close',function(){
+        
+        if (target) {
+          target.past = past;
+          target.future = future;
+          disp.emit('finder::match',target);
+          target = false; past = []; future = [];
+        }
+        
+      });
       
       disp.on('reader::line',function(line){
     
@@ -188,20 +171,40 @@ module.exports = function (args) {
         
         var found = 0;
         
-        query.forEach(function(q){
+        conf.query.forEach(function(q){
           
-          q.lastIndex = 0;
-          
-          if (line.text.match(q)) {
-            found++; line.text = line.text.replace(q,'$1'.cyan);
+          q.lastIndex = 0; if (line.text.match(q)) {
+            
+            found++;
+            line.text = line.text.replace(q,'$1'.cyan);
+            
           }
           
         });
         
-        if (found == query.length) {
+        if (found == conf.query.length) {
           
           line.matchid = matchid++;
-          disp.emit('finder::match',line);
+          
+          if (!conf.expand) {
+            disp.emit('finder::export',line);
+          } else if (conf.expand.id == line.matchid) {
+            target = line;
+          }
+          
+        } else if (conf.expand) {
+          
+          if (conf.expand.size >= past.length && !target) past.push(line);
+          if (past.length > conf.expand.size) past.shift();
+          
+          if (conf.expand.size > future.length && target) future.push(line);
+          if (future.length > conf.expand.size) future.shift();
+          
+          if (conf.expand.size == future.length && target) {
+            
+            disp.emit('finder::export',target);
+            
+          }
           
         }
         
@@ -214,13 +217,13 @@ module.exports = function (args) {
         if (typeof line.text !== 'string') return;
         
         line.matchid = matchid++;
-        disp.emit('finder::match',line);
+        disp.emit('finder::export',line);
         
       });
   
     }
     
-  })(disp,args);
+  })(disp,conf);
   
   return disp;
   
